@@ -432,7 +432,7 @@ body.is-admin .gnav-item.admin-only { display:inline-block !important; }
       <h2>인생의 중요한 순간,<br><em>행정절차를 함께 해결합니다</em></h2>
       <p>이사·출산·결혼 등 삶의 사건별로 흩어진 행정·신청 업무를<br>하나의 패키지로 안내하고 처리를 도와드립니다.</p>
       <div class="hero-search">
-        <input type="text" id="heroSearch" placeholder="이사, 출산신고, 전입신고 등 검색..." onkeydown="if(event.key==='Enter')doHeroSearch()">
+        <input type="text" id="heroSearch" placeholder="현재 상황을 문장으로 설명하거나 키워드로 검색... (예: 아기가 태어났어요, 이사했어요)" onkeydown="if(event.key==='Enter')doHeroSearch()">
         <button onclick="doHeroSearch()">🔍 검색</button>
       </div>
       <div class="hero-tags">
@@ -454,8 +454,12 @@ body.is-admin .gnav-item.admin-only { display:inline-block !important; }
 
   <div class="main-wrap">
     <!-- Test / Feedback Notice -->
+    <!-- NL 검색결과 영역 -->
+    <div id="nlSearchResults"></div>
+
     <div class="ai-notice">
       <strong>🧪 현재 테스트 중입니다.</strong> 개선 의견이 있을 때 <a href="#" onclick="showPage('requests');setNav('requests');return false;" style="color:#7a5a00;font-weight:600;text-decoration:underline;">요청사항</a>에 글을 남겨주세요.
+      &nbsp;|&nbsp; 🗺️ <strong>서울시 노원구</strong> 중심으로 구청자료까지 확대 제공할 계획입니다.
     </div>
 
     <!-- Quick Links -->
@@ -1553,9 +1557,19 @@ function renderAdminBackup(c) {
         관리자가 설정한 카탈로그, 법령정보, 연계 사이트, 회원 정보 등을 JSON 파일로 다운로드합니다.<br>
         index.html 업데이트 전에 반드시 백업하세요.
       </p>
-      <button class="at-btn approve" onclick="exportAdminData()" style="padding:10px 24px;font-size:14px;">
-        전체 데이터 내보내기 (JSON)
+      <button class="at-btn approve" onclick="exportAsDataJs()" style="padding:10px 24px;font-size:14px;background:var(--primary);color:#fff;border-color:var(--primary);margin-right:10px;">
+        ⬇️ data.js 내보내기 <span style="font-size:11px;opacity:.8;">(재배포용)</span>
       </button>
+      <button class="at-btn approve" onclick="exportAdminData()" style="padding:10px 24px;font-size:14px;">
+        JSON 백업 내보내기
+      </button>
+      <div style="margin-top:14px;padding:12px 16px;background:#e8f0ff;border-radius:6px;border-left:4px solid var(--primary);font-size:12px;color:var(--text2);line-height:1.8;">
+        <strong style="color:var(--primary);">📋 배포 업데이트 워크플로우</strong><br>
+        1. 관리자 페이지에서 카탈로그·생활이벤트·법령 수정<br>
+        2. <strong>"data.js 내보내기"</strong> 버튼 클릭 → data.js 파일 다운로드<br>
+        3. 다운로드된 data.js를 Netlify/GitHub에 <strong>재업로드</strong><br>
+        4. 수십 초 내 사이트 자동 반영 ✅
+      </div>
       <hr style="margin:28px 0;border:none;border-top:1px solid var(--border);">
       <h3 style="font-size:16px;margin-bottom:16px;color:var(--text1);">데이터 가져오기 (Import)</h3>
       <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">
@@ -1610,6 +1624,46 @@ function renderAdminBackup(c) {
   }
   statusHtml += '</table>';
   document.getElementById('backupStatus').innerHTML = statusHtml;
+}
+
+function exportAsDataJs() {
+  // localStorage 오버라이드가 있으면 우선 사용, 없으면 메모리 기본값
+  function getLS(key, fallback) {
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch(e) { return fallback; }
+  }
+  const topics  = getLS(LS_TOPICS,  TOPICS);
+  const steps   = getLS(LS_STEPS,   STEPS);
+  const details = getLS(LS_DETAILS, DETAILS_RAW);
+  const laws    = getLS(LS_LAWS,    []);
+  const sites   = getLS(LS_SITES,   []);
+
+  const now = new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'});
+  const js = [
+    `// ── DATA ── 인생여정 동행서비스 관리자 수정 반영본`,
+    `// 내보내기: ${now}`,
+    `// 이 파일을 서버의 data.js와 교체하면 변경사항이 전체 반영됩니다.`,
+    ``,
+    `let TOPICS=${JSON.stringify(topics)};`,
+    ``,
+    `let STEPS=${JSON.stringify(steps)};`,
+    ``,
+    `// Detail data`,
+    `let DETAILS_RAW = ${JSON.stringify(details)};`,
+    ``,
+    `// 법령정보 (관리자 등록)`,
+    `let LAWS_DATA = ${JSON.stringify(laws, null, 2)};`,
+    ``,
+    `// 연계 사이트 (관리자 등록)`,
+    `let SITES_DATA = ${JSON.stringify(sites, null, 2)};`,
+  ].join('\n');
+
+  const blob = new Blob([js], {type: 'application/javascript'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'data.js'; a.click();
+  URL.revokeObjectURL(url);
+  alert('✅ data.js를 내보냈습니다.\n\nNetlify: 사이트 폴더에 data.js 덮어쓰기 후 재업로드\nGitHub Pages: data.js 커밋 후 자동 배포');
 }
 
 function exportAdminData() {
@@ -1681,13 +1735,246 @@ function importAdminData(input) {
 }
 
 // ── SEARCH ────────────────────────────────────────────────────────────────
+// ── 자연어 검색: 데이터 기반 가중치 매칭 ──────────────────────────────────
+// 가중치: 관심사명×5 | 관심사설명×3 | 단계할일×3 | 할일별정보×2 | 시스템·기관명×1
+//
+// 설계 원칙:
+//  1. 수동 키워드 없이 TOPICS·STEPS·DETAILS_RAW 실데이터로만 매칭
+//  2. 조사 분리 변형(이사를→이사)으로 한국어 어미 문제 보완
+//  3. 토픽 명명 관례에 쓰이는 일반 동사(하려고·할때 등)는
+//     고신뢰 히트 판정에서 제외 → false positive 방지
+//  4. 관심사명 또는 설명에서 최소 1단어 이상 유의미 매칭 필요
+
+// 조사·어미 제거: "이사를" → ["이사를","이사"], "기억력이" → ["기억력이","기억력"]
+// ── 표현 → 도메인 키워드 확장 맵 ─────────────────────────────────────────
+// 동사 어근·구어체 표현을 패턴으로 잡아 데이터 내 실제 단어로 확장
+// patterns: query에 포함되면 인식 / expand: 매칭에 추가할 도메인 키워드
+const NL_EXPAND_MAP = [
+  { label:'사망·장례',
+    patterns:['돌아가','별세','임종','세상을 떠','유명을 달리','사망','운명하','타계','작고','죽'],
+    expand:['사망','장례','돌아가셨을','사망신고'] },
+  { label:'이사·전입',
+    patterns:['이사','전입','이삿짐','새집','이사왔','이사갔','이사했','주소이전'],
+    expand:['이사','이사를','전입신고','전입'] },
+  { label:'임신·출산',
+    patterns:['임신했','임신이 됐','임신이 되','아기를 가','임산부','임신 중','출산','아기가 태어','아이가 태어','출생','분만','임신'],
+    expand:['임신','출산','아이가','태어났을','임산부'] },
+  { label:'결혼·혼인',
+    patterns:['결혼','혼인','웨딩','결혼식','신혼'],
+    expand:['결혼','결혼할','혼인신고'] },
+  { label:'육아휴직',
+    patterns:['육아휴직','육아 휴직','휴직 신청','육아 휴가'],
+    expand:['육아휴직','육아휴직을'] },
+  { label:'아이 양육',
+    patterns:['아이를 키','아이 양육','자녀 양육','아이 돌봄','아이를 돌','양육하'],
+    expand:['육아','아이를','양육할'] },
+  { label:'어린이집',
+    patterns:['어린이집','보육원','어린이집에 보내','보육 시설'],
+    expand:['어린이집','어린이집에','보육'] },
+  { label:'난임',
+    patterns:['난임','불임','임신이 안','임신이 되지','시험관','체외수정','인공수정'],
+    expand:['난임','불임'] },
+  { label:'치매',
+    patterns:['기억력','기억이 안','치매','인지 기능','건망증','기억을 못','인지장애','떨어지셨','기억력이','기억력을','깜빡','치매 의심'],
+    expand:['치매','기억력','인지'] },
+  { label:'암',
+    patterns:['암 진단','암이 걸','암에 걸','종양','항암','암환자','암 선고','암 판정','암이라고'],
+    expand:['암','암을','진단을','암환자'] },
+  { label:'노인돌봄',
+    patterns:['요양','어르신','장기요양','노인 돌봄','노령','65세','돌봄 서비스','노인이','어머니가 편찮','아버지가 편찮'],
+    expand:['요양','노인','장기요양','돌봄이'] },
+  { label:'상속',
+    patterns:['상속','유산','재산을 물려','빚을 물려','유언장','빚 상속','재산 분배'],
+    expand:['상속','유산','상속을'] },
+  { label:'부동산등기',
+    patterns:['등기','셀프등기','소유권이전','집을 샀','집 매매','부동산 거래','법무사'],
+    expand:['등기','셀프등기','셀프등기를'] },
+];
+
+// 사용자 입력에서 도메인 키워드 추출
+function nlExtractKeywords(query) {
+  const q = query.toLowerCase();
+  const keywords = [];
+  const labels = [];
+  NL_EXPAND_MAP.forEach(rule => {
+    const hit = rule.patterns.some(p => q.includes(p.toLowerCase()));
+    if(hit) {
+      labels.push(rule.label);
+      rule.expand.forEach(kw => { if(!keywords.includes(kw)) keywords.push(kw); });
+    }
+  });
+  return { keywords, labels };
+}
+
+function nlStripParticles(word) {
+  if(word.length <= 2) return [word];
+  const two = ['에서','에게','으로','로서','이서','이가','으면','에는','이는','이를','이에','하고','하는','하여'];
+  const one = ['이','가','을','를','은','는','도','만','의','에','로','와','과','서','랑','이랑'];
+  const variants = [word];
+  for(const p of two) {
+    if(word.endsWith(p) && word.length - p.length >= 2) {
+      variants.push(word.slice(0, -p.length)); break;
+    }
+  }
+  if(variants.length === 1) {
+    for(const p of one) {
+      if(word.endsWith(p) && word.length - 1 >= 2) {
+        variants.push(word.slice(0, -1)); break;
+      }
+    }
+  }
+  return [...new Set(variants)];
+}
+
+// 토픽 명명 관례 단어(고신뢰 판정 제외): 이 단어들이 토픽명에 매칭돼도 highConfidenceHit=false
+const NL_NAMING_WORDS = new Set([
+  // 토픽 명명 관례 동사/부사
+  '하려고','하고자','할때','하기위해','하는','할','때','하기','하여','하고',
+  '해요','합니다','어떻게','싶어요','싶은데','인데요','이에요','됩니다','됐어요',
+  '있어요','없어요','위해','위한','필요한','관련','경우','상황','상태','누군가가',
+  '누군가','갖고자','받았을','겪을','의심될',
+  // 공공서비스 문서에 공통으로 등장하는 일반 행정 용어 (변별력 없음)
+  '서비스','정보','확인','안내','사항','절차','신청','지원','관리','이용',
+  '방법','제공','처리','등록','접수','발급','진행','수행','대상','관련'
+]);
+
+function nlMatchTopics(query) {
+  const q = query.toLowerCase().replace(/[.,!?~]/g, ' ');
+  const rawWords = q.split(/\s+/).filter(w => w.length >= 2);
+  if(rawWords.length === 0) return [];
+
+  // 조사 제거 변형까지 포함한 유니크 단어 목록
+  const words = [...new Set(rawWords.flatMap(w => nlStripParticles(w)))].filter(w => w.length >= 2);
+
+  return TOPICS.map(topic => {
+    const details = DETAILS_RAW[String(topic.id)] || [];
+    const steps   = STEPS[topic.id] || [];
+
+    // 필드별 말뭉치 (소문자)
+    const nameText   = topic.topic.toLowerCase();
+    const descText   = topic.desc.toLowerCase();
+    const stepCorpus = steps.map(s => s.task + ' ' + s.desc).join(' ').toLowerCase();
+    const infoCorpus = details.map(d => (d.content||'') + ' ' + (d.desc||'')).join(' ').toLowerCase();
+    const orgCorpus  = details.map(d => (d.org||'') + ' ' + (d.cat&&d.cat.includes('시스템') ? (d.content||'') : '')).join(' ').toLowerCase();
+
+    let score = 0;
+    // 관심사명 또는 설명에서 유의미 단어가 1개 이상 매칭돼야 결과로 인정
+    let highConfidenceHit = false;
+
+    words.forEach(w => {
+      const inName = nameText.includes(w);
+      const inDesc = descText.includes(w);
+
+      if(inName) {
+        score += 5;
+        if(!NL_NAMING_WORDS.has(w)) highConfidenceHit = true;
+      }
+      if(inDesc) {
+        score += 3;
+        if(!NL_NAMING_WORDS.has(w)) highConfidenceHit = true;
+      }
+      if(stepCorpus.includes(w)) score += 3;
+      if(infoCorpus.includes(w)) score += 2;
+      if(orgCorpus.includes(w))  score += 1;
+    });
+
+    // 역방향: 관심사명 단어가 쿼리에 그대로 포함 (명명 관례 단어 제외)
+    nameText.split(/\s+/).forEach(tw => {
+      if(tw.length >= 2 && !NL_NAMING_WORDS.has(tw) && q.includes(tw)) {
+        score += 5;
+        highConfidenceHit = true;
+      }
+    });
+
+    // 고신뢰 히트 없으면 제외 (노이즈 방지)
+    if(!highConfidenceHit) return { topic, score: 0 };
+    return { topic, score };
+  }).filter(s => s.score >= 8).sort((a,b) => b.score - a.score);
+}
+
+function showNLSearchResults(query, matches, extractedKeywords=[], extractedLabels=[]) {
+  const resultsDiv = document.getElementById('nlSearchResults');
+  if(!resultsDiv) return;
+
+  // 추출 키워드 태그 HTML
+  const kwHtml = extractedKeywords.length > 0
+    ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;">
+         <span style="font-size:11px;color:var(--text3);">💡 인식 키워드:</span>
+         ${extractedLabels.map(lb =>
+           `<span style="background:#e8f0ff;color:var(--primary);padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;">${lb}</span>`
+         ).join('')}
+       </div>`
+    : '';
+
+  let html = '';
+  if(matches.length > 0) {
+    const cards = matches.slice(0, 4).map(m => `
+      <div onclick="loadPackage(${m.topic.id});document.getElementById('nlSearchResults').innerHTML='';"
+           style="border:1px solid var(--border);border-radius:8px;padding:16px;cursor:pointer;transition:.2s;background:#f8f9ff;"
+           onmouseover="this.style.borderColor='var(--primary)';this.style.background='#fff';this.style.transform='translateY(-2px)'"
+           onmouseout="this.style.borderColor='var(--border)';this.style.background='#f8f9ff';this.style.transform=''">
+        <div style="font-size:28px;margin-bottom:8px;">${m.topic.icon}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">${m.topic.field}</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px;">${m.topic.topic}</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5;">${m.topic.desc.substring(0,60)}…</div>
+      </div>`).join('');
+
+    html = `
+      <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,48,135,0.07);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:22px;">🔍</span>
+            <div>
+              <strong style="color:var(--primary);font-size:15px;">관련 서비스 패키지를 찾았습니다</strong>
+              <p style="font-size:12px;color:var(--text3);margin-top:1px;">"${escapeHtml(query)}"</p>
+              ${kwHtml}
+            </div>
+          </div>
+          <button onclick="document.getElementById('nlSearchResults').innerHTML='';" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:16px;">
+          ${cards}
+        </div>
+        <p style="font-size:12px;color:var(--text3);margin-top:14px;text-align:right;">
+          찾는 서비스가 없다면 <a href="#" onclick="showPage('requests');setNav('requests');document.getElementById('nlSearchResults').innerHTML='';return false;" style="color:var(--primary);font-weight:600;">요청사항</a>에 남겨주세요.
+        </p>
+      </div>`;
+  } else {
+    html = `
+      <div style="background:#fff3e0;border:1px solid #f5a623;border-radius:10px;padding:24px;margin-bottom:16px;text-align:center;">
+        <div style="font-size:36px;margin-bottom:10px;">🔎</div>
+        <strong style="font-size:15px;color:#7a5a00;display:block;margin-bottom:6px;">현재 제공하지 않는 관심사입니다</strong>
+        ${kwHtml ? `<div style="display:flex;justify-content:center;margin-bottom:10px;">${kwHtml}</div>` : ''}
+        <p style="font-size:13px;color:#5a4000;margin-bottom:16px;">"${escapeHtml(query)}"에 해당하는 서비스를 아직 제공하고 있지 않습니다.<br>요청사항에 남겨주시면 검토 후 반영하겠습니다.</p>
+        <button class="btn btn-primary" onclick="showPage('requests');setNav('requests');document.getElementById('nlSearchResults').innerHTML='';">📝 요청사항에 남기기</button>
+        <button onclick="document.getElementById('nlSearchResults').innerHTML='';" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--text3);margin-left:14px;">닫기</button>
+      </div>`;
+  }
+
+  resultsDiv.innerHTML = html;
+  resultsDiv.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
 function doHeroSearch() {
   const q = document.getElementById('heroSearch').value.trim();
   if(!q) return;
-  document.getElementById('catalogSearch').value = q;
-  showPage('catalog');setNav('catalog');
-  renderCatalog();
+
+  const isNaturalLanguage = q.length > 8 || q.split(' ').length >= 2;
+
+  if(isNaturalLanguage) {
+    // ① 표현에서 도메인 키워드 추출
+    const { keywords, labels } = nlExtractKeywords(q);
+    // ② 원본 + 추출 키워드를 합쳐 매칭 (어미 변화 보완)
+    const expandedQuery = keywords.length > 0 ? q + ' ' + keywords.join(' ') : q;
+    const matches = nlMatchTopics(expandedQuery);
+    showNLSearchResults(q, matches, keywords, labels);
+  } else {
+    document.getElementById('catalogSearch').value = q;
+    showPage('catalog');setNav('catalog');
+    renderCatalog();
+  }
 }
+
 function quickSearch(q) {
   document.getElementById('heroSearch').value = q;
   doHeroSearch();
